@@ -1,12 +1,11 @@
+use crate::absolute_moves::{AbsMove, MoveDirection, Side};
 use std::fmt::{Display, Formatter, Result as FResult};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Finger {
     Thumb,
     Index,
-    Middle,
     Ring,
-    Little,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -29,9 +28,9 @@ impl Display for FingerMove {
         let finger = match self.0 {
             Finger::Thumb => "t",
             Finger::Index => "s",
-            Finger::Middle => "m",
+            // Finger::Middle => "m",
             Finger::Ring => "r",
-            Finger::Little => "l",
+            // Finger::Little => "l",
         };
         let finger_w_hand = if self.1 == Hand::Left {
             finger.to_uppercase()
@@ -44,6 +43,45 @@ impl Display for FingerMove {
             write!(f, "\'")?;
         }
         FResult::Ok(())
+    }
+}
+
+impl FingerMove {
+    pub fn into_absolute(self, hgrip: HandGrip) -> AbsMove {
+        // Start with the move where grip = G2
+        use crate::absolute_moves::MoveDirection::*;
+        use crate::absolute_moves::Side::*;
+        let move_g2 = match (self.0, self.1, self.2) {
+            (Finger::Thumb, Hand::Left, Direction::Push) => AbsMove(F, CW),
+            (Finger::Index, Hand::Left, Direction::Push) => AbsMove(U, CW),
+            (Finger::Ring, Hand::Left, Direction::Push) => AbsMove(D, CCW),
+            (Finger::Thumb, Hand::Left, Direction::Pull) => AbsMove(F, CCW),
+            (Finger::Index, Hand::Left, Direction::Pull) => AbsMove(U, CCW),
+            (Finger::Ring, Hand::Left, Direction::Pull) => AbsMove(D, CW),
+            (Finger::Thumb, Hand::Right, Direction::Push) => AbsMove(F, CCW),
+            (Finger::Index, Hand::Right, Direction::Push) => AbsMove(U, CCW),
+            (Finger::Ring, Hand::Right, Direction::Push) => AbsMove(D, CW),
+            (Finger::Thumb, Hand::Right, Direction::Pull) => AbsMove(F, CW),
+            (Finger::Index, Hand::Right, Direction::Pull) => AbsMove(U, CW),
+            (Finger::Ring, Hand::Right, Direction::Pull) => AbsMove(D, CCW),
+        };
+
+        let grip = if self.1 == Hand::Left {
+            hgrip.0
+        } else {
+            hgrip.1
+        };;
+
+        use crate::rotation::FullCubeRotation;
+
+        let rot = match grip {
+            Grip::G0 => FullCubeRotation::X2,
+            Grip::G1 => FullCubeRotation::X,
+            Grip::G2 => FullCubeRotation::Ident,
+            Grip::G3 => FullCubeRotation::Xi,
+        };
+
+        AbsMove(rot.apply_to_side(move_g2.0), move_g2.1)
     }
 }
 
@@ -95,23 +133,23 @@ impl Grip {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct Regrip(pub Grip, pub Grip);
+pub struct HandGrip(pub Grip, pub Grip);
 
-impl Regrip {
-    fn changeby(self, change: HandMove) -> Option<Regrip> {
+impl HandGrip {
+    fn change_by(self, change: HandMove) -> Option<HandGrip> {
         if change.1 == Hand::Left {
-            self.0.changeby(change.0).map(|x| Regrip(x, self.1))
+            self.0.changeby(change.0).map(|x| HandGrip(x, self.1))
         } else {
-            self.1.changeby(change.0).map(|x| Regrip(self.0, x))
+            self.1.changeby(change.0).map(|x| HandGrip(self.0, x))
         }
     }
 }
 
-impl Display for Regrip {
+impl Display for HandGrip {
     fn fmt(&self, f: &mut Formatter) -> FResult {
         write!(f, "{}", self.0 as u8)?;
         write!(f, "/")?;
-        write!(f, "{}", self.0 as u8)
+        write!(f, "{}", self.1 as u8)
     }
 }
 
@@ -143,8 +181,74 @@ impl Display for HandMove {
     }
 }
 
-enum Move {
+impl HandMove {
+    fn into_absolute(self) -> AbsMove {
+        use crate::absolute_moves::MoveDirection::*;
+        use crate::absolute_moves::Side::*;
+
+        match (self.0, self.1) {
+            (VMove::Plus1, Hand::Left) => AbsMove(L, CCW),
+            (VMove::Minus1, Hand::Left) => AbsMove(L, CW),
+            (VMove::Plus2, Hand::Left) | (VMove::Minus2, Hand::Left) => AbsMove(L, Double),
+            (VMove::Plus1, Hand::Right) => AbsMove(R, CW),
+            (VMove::Minus1, Hand::Right) => AbsMove(R, CCW),
+            (VMove::Plus2, Hand::Right) | (VMove::Minus2, Hand::Right) => AbsMove(R, Double),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Move {
     FingerMove(FingerMove),
     HandMove(HandMove),
-    Regrip(Regrip),
+    Regrip(HandGrip),
+}
+
+#[derive(Debug)]
+pub struct Algorithm {
+    pub init_grip: HandGrip,
+    pub moves: Vec<Move>
+}
+
+impl Algorithm {
+    pub fn into_absolute(self) -> Option<Vec<AbsMove>> {
+        let mut res = Vec::new();
+
+        // TODO: Set capacity?
+        let mut current_grip = self.init_grip;
+
+        for mov in self.moves {
+            match mov {
+                Move::FingerMove(fm) => {
+                    res.push(fm.into_absolute(current_grip));
+                }
+                Move::HandMove(hm) => {
+                    res.push(hm.into_absolute());
+                    if let Some(ngrip) = current_grip.change_by(hm) {
+                        current_grip = ngrip;
+                    } else {
+                        return None;
+                    }
+                }
+                Move::Regrip(grip) => {
+                    current_grip = grip;
+                }
+            }
+        }
+        Some(res)
+    }
+}
+
+impl Display for Algorithm {
+    fn fmt(&self, f: &mut Formatter) -> FResult {
+        write!(f, "{}", self.init_grip)?;
+        for mov in &self.moves {
+            match mov {
+                Move::FingerMove(fm) => write!(f, " {}", fm)?,
+                Move::HandMove(hm) => write!(f, " {}", hm)?,
+                Move::Regrip(rg) => write!(f, " {}", rg)?,
+            }
+        }
+        FResult::Ok(())
+    }
 }
