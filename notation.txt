@@ -1,0 +1,35 @@
+Grips:
+    0: index on FLD/FRD, thumb on BL/BR
+    1: 0+L'/R
+    ...
+    4: 3+L'/R
+
+Regrip: Left hand grip/Right hand grip
+    Ex: 2/1 is the common grip before a Y-perm
+    if the grip is the same as before for one hand, it can be omitted
+
+
+Fingers:
+    t = thumb
+    s = index (stadns for second, so that I and l won't be confused)
+    (m = middle)
+    r = ring
+    l = little
+
+Moves with fingers:
+    Finger, where uppercase means left hand, lowercase means right hand. Pushing with the finger (
+    away from the hand) is marked with a ', pulling is no suffix. When doing a double move,
+
+Ex: 2/2 s = 2/2 S' = U
+
+Moves changing grip:
+    H = left, h = right (mnemonic: hand)
+    No suffix = increase number (L' / R)
+    Suffix ' = decrease number (L / R')
+    Suffix 2 = increase by 2 (L'2 / R2)
+    Suffix 2' = increase by 2 (L'2 / R2)
+
+TODO: Wide moves
+
+Example:
+    T-perm: 2/2 h S' h' S h' s h2 S h' S h S' h' t'
